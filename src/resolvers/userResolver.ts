@@ -1,6 +1,19 @@
 import argon2 from 'argon2'
-import { Resolver, Mutation, Query, Arg } from 'type-graphql'
+import { validateSignIn, validateSignup } from '../utils/validators'
+import { Resolver, Mutation, Query, Arg, InputType, Field, } from 'type-graphql'
 import { User } from '../entity/User'
+import { UserInputError } from 'apollo-server-express'
+
+
+@InputType()
+class Inputs {
+    @Field()
+    username: string
+    @Field()
+    email: string
+    @Field()
+    password: string
+}
 
 @Resolver()
 export class UserResolver {
@@ -11,15 +24,27 @@ export class UserResolver {
 
     @Mutation(() => User, { nullable: true })
     async signup(
-        @Arg('username') username: string,
-        @Arg('email') email: string,
-        @Arg('password') password: string
+        @Arg('inputs') inputs: Inputs
     ): Promise<User | null> {
-        const hashedPassword = await argon2.hash(password)
+        const { valid, errors } = validateSignup(inputs)
+
+        if (!valid) throw new UserInputError('Errors', { errors })
+
+        const userExists = await User.findOne({ where: { email: inputs.email } })
+
+        if (userExists) {
+            throw new UserInputError('Username is taken', {
+                errors: {
+                    email: 'This username is taken'
+                }
+            })
+        }
+
+        const hashedPassword = await argon2.hash(inputs.password)
 
         const user = await User.create({
-            username,
-            email,
+            username: inputs.email,
+            email: inputs.email,
             password: hashedPassword
         }).save()
         return user
@@ -30,22 +55,29 @@ export class UserResolver {
         @Arg('usernameOrEmail') usernameOrEmail: string,
         @Arg('password') password: string
     ): Promise<User | null> {
+        const { valid, errors } = validateSignIn(usernameOrEmail, password)
+
+        if (!valid) throw new UserInputError('UsernameOrEmail', { errors })
+
         const user = await User.findOne(usernameOrEmail.includes('@') ? {
             where: {
                 email: usernameOrEmail
             }
         } : { where: { username: usernameOrEmail } })
 
-        if (!user) return null
+        if (!user) throw new UserInputError('user not found', {
+            errors: {
+                global: 'user not found'
+            }
+        })
         const validPassword = await argon2.verify(user.password, password)
 
-        if (!validPassword) return null
+        if (!validPassword) throw new UserInputError('Wrong credentils', {
+            errors: {
+                global: 'Wrong credentails'
+            }
+        })
         return user
     }
 
 }
-
-
-
-
-

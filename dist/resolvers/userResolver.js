@@ -26,18 +26,48 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UserResolver = void 0;
 const argon2_1 = __importDefault(require("argon2"));
+const validators_1 = require("../utils/validators");
 const type_graphql_1 = require("type-graphql");
 const User_1 = require("../entity/User");
+const apollo_server_express_1 = require("apollo-server-express");
+let Inputs = class Inputs {
+};
+__decorate([
+    type_graphql_1.Field(),
+    __metadata("design:type", String)
+], Inputs.prototype, "username", void 0);
+__decorate([
+    type_graphql_1.Field(),
+    __metadata("design:type", String)
+], Inputs.prototype, "email", void 0);
+__decorate([
+    type_graphql_1.Field(),
+    __metadata("design:type", String)
+], Inputs.prototype, "password", void 0);
+Inputs = __decorate([
+    type_graphql_1.InputType()
+], Inputs);
 let UserResolver = class UserResolver {
     helloworld() {
         return 'hello there';
     }
-    signup(username, email, password) {
+    signup(inputs) {
         return __awaiter(this, void 0, void 0, function* () {
-            const hashedPassword = yield argon2_1.default.hash(password);
+            const { valid, errors } = validators_1.validateSignup(inputs);
+            if (!valid)
+                throw new apollo_server_express_1.UserInputError('Errors', { errors });
+            const userExists = yield User_1.User.findOne({ where: { email: inputs.email } });
+            if (userExists) {
+                throw new apollo_server_express_1.UserInputError('Username is taken', {
+                    errors: {
+                        email: 'This username is taken'
+                    }
+                });
+            }
+            const hashedPassword = yield argon2_1.default.hash(inputs.password);
             const user = yield User_1.User.create({
-                username,
-                email,
+                username: inputs.email,
+                email: inputs.email,
                 password: hashedPassword
             }).save();
             return user;
@@ -45,16 +75,27 @@ let UserResolver = class UserResolver {
     }
     signin(usernameOrEmail, password) {
         return __awaiter(this, void 0, void 0, function* () {
+            const { valid, errors } = validators_1.validateSignIn(usernameOrEmail, password);
+            if (!valid)
+                throw new apollo_server_express_1.UserInputError('UsernameOrEmail', { errors });
             const user = yield User_1.User.findOne(usernameOrEmail.includes('@') ? {
                 where: {
                     email: usernameOrEmail
                 }
             } : { where: { username: usernameOrEmail } });
             if (!user)
-                return null;
+                throw new apollo_server_express_1.UserInputError('user not found', {
+                    errors: {
+                        global: 'user not found'
+                    }
+                });
             const validPassword = yield argon2_1.default.verify(user.password, password);
             if (!validPassword)
-                return null;
+                throw new apollo_server_express_1.UserInputError('Wrong credentils', {
+                    errors: {
+                        global: 'Wrong credentails'
+                    }
+                });
             return user;
         });
     }
@@ -67,11 +108,9 @@ __decorate([
 ], UserResolver.prototype, "helloworld", null);
 __decorate([
     type_graphql_1.Mutation(() => User_1.User, { nullable: true }),
-    __param(0, type_graphql_1.Arg('username')),
-    __param(1, type_graphql_1.Arg('email')),
-    __param(2, type_graphql_1.Arg('password')),
+    __param(0, type_graphql_1.Arg('inputs')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:paramtypes", [Inputs]),
     __metadata("design:returntype", Promise)
 ], UserResolver.prototype, "signup", null);
 __decorate([
