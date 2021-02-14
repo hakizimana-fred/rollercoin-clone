@@ -30,6 +30,7 @@ const validators_1 = require("../utils/validators");
 const type_graphql_1 = require("type-graphql");
 const User_1 = require("../entity/User");
 const apollo_server_express_1 = require("apollo-server-express");
+const sendConfirmationEmail_1 = require("../utils/sendConfirmationEmail");
 let Inputs = class Inputs {
 };
 __decorate([
@@ -66,10 +67,11 @@ let UserResolver = class UserResolver {
             }
             const hashedPassword = yield argon2_1.default.hash(inputs.password);
             const user = yield User_1.User.create({
-                username: inputs.email,
+                username: inputs.username,
                 email: inputs.email,
                 password: hashedPassword
             }).save();
+            yield sendConfirmationEmail_1.sendConfirmationEmail();
             return user;
         });
     }
@@ -78,17 +80,15 @@ let UserResolver = class UserResolver {
             const { valid, errors } = validators_1.validateSignIn(usernameOrEmail, password);
             if (!valid)
                 throw new apollo_server_express_1.UserInputError('UsernameOrEmail', { errors });
-            const user = yield User_1.User.findOne(usernameOrEmail.includes('@') ? {
-                where: {
-                    email: usernameOrEmail
-                }
-            } : { where: { username: usernameOrEmail } });
+            const user = yield User_1.User.findOne(usernameOrEmail.includes('@') ? { where: { email: usernameOrEmail } } : { where: { username: usernameOrEmail } });
             if (!user)
                 throw new apollo_server_express_1.UserInputError('user not found', {
                     errors: {
                         global: 'user not found'
                     }
                 });
+            if (!user)
+                return null;
             const validPassword = yield argon2_1.default.verify(user.password, password);
             if (!validPassword)
                 throw new apollo_server_express_1.UserInputError('Wrong credentils', {

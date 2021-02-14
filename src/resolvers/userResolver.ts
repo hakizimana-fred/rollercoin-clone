@@ -3,7 +3,7 @@ import { validateSignIn, validateSignup } from '../utils/validators'
 import { Resolver, Mutation, Query, Arg, InputType, Field, } from 'type-graphql'
 import { User } from '../entity/User'
 import { UserInputError } from 'apollo-server-express'
-
+import { sendConfirmationEmail } from '../utils/sendConfirmationEmail'
 
 @InputType()
 class Inputs {
@@ -43,10 +43,11 @@ export class UserResolver {
         const hashedPassword = await argon2.hash(inputs.password)
 
         const user = await User.create({
-            username: inputs.email,
+            username: inputs.username,
             email: inputs.email,
             password: hashedPassword
         }).save()
+        await sendConfirmationEmail()
         return user
     }
 
@@ -59,17 +60,14 @@ export class UserResolver {
 
         if (!valid) throw new UserInputError('UsernameOrEmail', { errors })
 
-        const user = await User.findOne(usernameOrEmail.includes('@') ? {
-            where: {
-                email: usernameOrEmail
-            }
-        } : { where: { username: usernameOrEmail } })
+        const user = await User.findOne(usernameOrEmail.includes('@') ? { where: { email: usernameOrEmail } } : { where: { username: usernameOrEmail } })
 
         if (!user) throw new UserInputError('user not found', {
             errors: {
                 global: 'user not found'
             }
         })
+        if (!user) return null
         const validPassword = await argon2.verify(user.password, password)
 
         if (!validPassword) throw new UserInputError('Wrong credentils', {
