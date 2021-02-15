@@ -6,6 +6,9 @@ import express from 'express'
 import { ApolloServer } from 'apollo-server-express'
 import { UserResolver } from './resolvers/userResolver'
 import path from 'path'
+import dotenv from "dotenv";
+
+dotenv.config()
 
 const startServer = async () => {
     await createConnection({
@@ -28,9 +31,11 @@ const startServer = async () => {
     });
 
     const app = express();
+    const port = process.env.PORT || 4000
+
     server.applyMiddleware({ app });
 
-    app.listen({ port: 4000 }, () =>
+    app.listen({ port }, () =>
         console.log(`🚀 Server ready at http://localhost:4000${server.graphqlPath}`)
     );
 }

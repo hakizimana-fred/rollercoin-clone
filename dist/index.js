@@ -20,6 +20,8 @@ const express_1 = __importDefault(require("express"));
 const apollo_server_express_1 = require("apollo-server-express");
 const userResolver_1 = require("./resolvers/userResolver");
 const path_1 = __importDefault(require("path"));
+const dotenv_1 = __importDefault(require("dotenv"));
+dotenv_1.default.config();
 const startServer = () => __awaiter(void 0, void 0, void 0, function* () {
     yield typeorm_1.createConnection({
         type: 'postgres',
@@ -39,8 +41,9 @@ const startServer = () => __awaiter(void 0, void 0, void 0, function* () {
         })
     });
     const app = express_1.default();
+    const port = process.env.PORT || 4000;
     server.applyMiddleware({ app });
-    app.listen({ port: 4000 }, () => console.log(`🚀 Server ready at http://localhost:4000${server.graphqlPath}`));
+    app.listen({ port }, () => console.log(`🚀 Server ready at http://localhost:4000${server.graphqlPath}`));
 });
 startServer().catch(err => console.log(err));
 //# sourceMappingURL=index.js.map

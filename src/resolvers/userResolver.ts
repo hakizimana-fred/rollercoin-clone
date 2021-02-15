@@ -2,8 +2,11 @@ import argon2 from 'argon2'
 import { validateSignIn, validateSignup } from '../utils/validators'
 import { Resolver, Mutation, Query, Arg, InputType, Field, } from 'type-graphql'
 import { User } from '../entity/User'
-import { UserInputError } from 'apollo-server-express'
+import { UserInputError, AuthenticationError } from 'apollo-server-express'
 import { sendConfirmationEmail } from '../utils/sendConfirmationEmail'
+import { sendResetPasswordEmail } from '../utils/sendResetPasswordEmail'
+import jwt from 'jsonwebtoken'
+import { getConnection } from 'typeorm'
 
 @InputType()
 class Inputs {
@@ -77,5 +80,50 @@ export class UserResolver {
         })
         return user
     }
+    @Mutation(() => Boolean)
+    async forgotpassword(
+        @Arg('email') email: string,
+    ) {
+        const user = await User.findOne({ where: { email } })
 
+        if (!user) return true
+        const token = jwt.sign({
+            id: user.id,
+            email
+        }, process.env.JWT_SECRET as string, { expiresIn: '1h' })
+        await sendResetPasswordEmail()
+        return true
+        return true
+    }
+
+    @Mutation(() => User)
+    async resetPassword(
+        @Arg('newPassword') newPassword: string,
+        @Arg('token') token: string,
+    ): Promise<User | null> {
+        if (!newPassword) throw new UserInputError('Error', {
+            errors: {
+                password: 'Password is required'
+            }
+        })
+
+        if (newPassword.length < 6) throw new UserInputError('Error', {
+            errors: {
+                password: 'Password is too short'
+            }
+        })
+
+        // get token
+
+
+        await getConnection()
+            .createQueryBuilder()
+            .update(User)
+            .set({ password: await argon2.hash(newPassword) })
+            .where("id = :id", { id: userId })
+            .execute();
+
+
+        //return user
+    }
 }

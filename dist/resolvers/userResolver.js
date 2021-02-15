@@ -31,6 +31,9 @@ const type_graphql_1 = require("type-graphql");
 const User_1 = require("../entity/User");
 const apollo_server_express_1 = require("apollo-server-express");
 const sendConfirmationEmail_1 = require("../utils/sendConfirmationEmail");
+const sendResetPasswordEmail_1 = require("../utils/sendResetPasswordEmail");
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const typeorm_1 = require("typeorm");
 let Inputs = class Inputs {
 };
 __decorate([
@@ -99,6 +102,42 @@ let UserResolver = class UserResolver {
             return user;
         });
     }
+    forgotpassword(email) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const user = yield User_1.User.findOne({ where: { email } });
+            if (!user)
+                return true;
+            const token = jsonwebtoken_1.default.sign({
+                id: user.id,
+                email
+            }, process.env.JWT_SECRET, { expiresIn: '1h' });
+            yield sendResetPasswordEmail_1.sendResetPasswordEmail();
+            return true;
+            return true;
+        });
+    }
+    resetPassword(newPassword, token) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (!newPassword)
+                throw new apollo_server_express_1.UserInputError('Error', {
+                    errors: {
+                        password: 'Password is required'
+                    }
+                });
+            if (newPassword.length < 6)
+                throw new apollo_server_express_1.UserInputError('Error', {
+                    errors: {
+                        password: 'Password is too short'
+                    }
+                });
+            yield typeorm_1.getConnection()
+                .createQueryBuilder()
+                .update(User_1.User)
+                .set({ password: yield argon2_1.default.hash(newPassword) })
+                .where("id = :id", { id: userId })
+                .execute();
+        });
+    }
 };
 __decorate([
     type_graphql_1.Query(() => String),
@@ -121,6 +160,21 @@ __decorate([
     __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", Promise)
 ], UserResolver.prototype, "signin", null);
+__decorate([
+    type_graphql_1.Mutation(() => Boolean),
+    __param(0, type_graphql_1.Arg('email')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], UserResolver.prototype, "forgotpassword", null);
+__decorate([
+    type_graphql_1.Mutation(() => User_1.User),
+    __param(0, type_graphql_1.Arg('newPassword')),
+    __param(1, type_graphql_1.Arg('token')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", Promise)
+], UserResolver.prototype, "resetPassword", null);
 UserResolver = __decorate([
     type_graphql_1.Resolver()
 ], UserResolver);
