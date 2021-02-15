@@ -31,9 +31,8 @@ const type_graphql_1 = require("type-graphql");
 const User_1 = require("../entity/User");
 const apollo_server_express_1 = require("apollo-server-express");
 const sendConfirmationEmail_1 = require("../utils/sendConfirmationEmail");
-const sendResetPasswordEmail_1 = require("../utils/sendResetPasswordEmail");
-const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const typeorm_1 = require("typeorm");
+const confirmationUrl_1 = require("../utils/confirmationUrl");
+const uuid_1 = require("uuid");
 let Inputs = class Inputs {
 };
 __decorate([
@@ -60,7 +59,8 @@ let UserResolver = class UserResolver {
             const { valid, errors } = validators_1.validateSignup(inputs);
             if (!valid)
                 throw new apollo_server_express_1.UserInputError('Errors', { errors });
-            const userExists = yield User_1.User.findOne({ where: { email: inputs.email } });
+            const { username, email, password } = inputs;
+            const userExists = yield User_1.User.findOne({ where: { email } });
             if (userExists) {
                 throw new apollo_server_express_1.UserInputError('Username is taken', {
                     errors: {
@@ -68,13 +68,13 @@ let UserResolver = class UserResolver {
                     }
                 });
             }
-            const hashedPassword = yield argon2_1.default.hash(inputs.password);
+            const hashedPassword = yield argon2_1.default.hash(password);
             const user = yield User_1.User.create({
-                username: inputs.username,
-                email: inputs.email,
-                password: hashedPassword
+                username: username,
+                email: email,
+                password: hashedPassword,
             }).save();
-            yield sendConfirmationEmail_1.sendConfirmationEmail();
+            yield sendConfirmationEmail_1.sendConfirmationEmail(email, yield confirmationUrl_1.createConfirmationUrl(user.id));
             return user;
         });
     }
@@ -92,6 +92,8 @@ let UserResolver = class UserResolver {
                 });
             if (!user)
                 return null;
+            if (!user.confirmed)
+                return null;
             const validPassword = yield argon2_1.default.verify(user.password, password);
             if (!validPassword)
                 throw new apollo_server_express_1.UserInputError('Wrong credentils', {
@@ -102,17 +104,25 @@ let UserResolver = class UserResolver {
             return user;
         });
     }
-    forgotpassword(email) {
+    confirmUser(token, { redis }) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const userId = yield redis.get(token);
+            if (!userId) {
+                return false;
+            }
+            yield User_1.User.update({ id: userId }, { confirmed: true });
+            yield redis.del(token);
+            return true;
+        });
+    }
+    forgotpassword(email, { redis }) {
         return __awaiter(this, void 0, void 0, function* () {
             const user = yield User_1.User.findOne({ where: { email } });
             if (!user)
                 return true;
-            const token = jsonwebtoken_1.default.sign({
-                id: user.id,
-                email
-            }, process.env.JWT_SECRET, { expiresIn: '1h' });
-            yield sendResetPasswordEmail_1.sendResetPasswordEmail();
-            return true;
+            const token = uuid_1.v4();
+            yield redis.set('forgot-password' + token, user.id, "ex", 60 * 60 * 24);
+            yield sendConfirmationEmail_1.sendConfirmationEmail(email, `<a href="http://localhost:3000/change-password/${token}">reset password</a>`);
             return true;
         });
     }
@@ -130,12 +140,8 @@ let UserResolver = class UserResolver {
                         password: 'Password is too short'
                     }
                 });
-            yield typeorm_1.getConnection()
-                .createQueryBuilder()
-                .update(User_1.User)
-                .set({ password: yield argon2_1.default.hash(newPassword) })
-                .where("id = :id", { id: userId })
-                .execute();
+            const user = yield User_1.User.findOneOrFail({});
+            return user;
         });
     }
 };
@@ -162,9 +168,18 @@ __decorate([
 ], UserResolver.prototype, "signin", null);
 __decorate([
     type_graphql_1.Mutation(() => Boolean),
-    __param(0, type_graphql_1.Arg('email')),
+    __param(0, type_graphql_1.Arg('token')),
+    __param(1, type_graphql_1.Ctx()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], UserResolver.prototype, "confirmUser", null);
+__decorate([
+    type_graphql_1.Mutation(() => Boolean),
+    __param(0, type_graphql_1.Arg('email')),
+    __param(1, type_graphql_1.Ctx()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], UserResolver.prototype, "forgotpassword", null);
 __decorate([

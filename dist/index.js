@@ -21,6 +21,7 @@ const apollo_server_express_1 = require("apollo-server-express");
 const userResolver_1 = require("./resolvers/userResolver");
 const path_1 = __importDefault(require("path"));
 const dotenv_1 = __importDefault(require("dotenv"));
+const ioredis_1 = __importDefault(require("ioredis"));
 dotenv_1.default.config();
 const startServer = () => __awaiter(void 0, void 0, void 0, function* () {
     yield typeorm_1.createConnection({
@@ -34,11 +35,13 @@ const startServer = () => __awaiter(void 0, void 0, void 0, function* () {
         entities: [User_1.User],
         migrations: [path_1.default.join(__dirname, './migrations/*')]
     });
+    const redis = new ioredis_1.default();
     const server = new apollo_server_express_1.ApolloServer({
         schema: yield type_graphql_1.buildSchema({
             resolvers: [userResolver_1.UserResolver],
             validate: false
-        })
+        }),
+        context: ({ req, res }) => ({ req, res, redis })
     });
     const app = express_1.default();
     const port = process.env.PORT || 4000;

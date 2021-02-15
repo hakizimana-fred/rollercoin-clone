@@ -7,6 +7,7 @@ import { ApolloServer } from 'apollo-server-express'
 import { UserResolver } from './resolvers/userResolver'
 import path from 'path'
 import dotenv from "dotenv";
+import Redis from 'ioredis'
 
 dotenv.config()
 
@@ -23,11 +24,15 @@ const startServer = async () => {
         migrations: [path.join(__dirname, './migrations/*')]
 
     })
+
+    const redis = new Redis()
+
     const server = new ApolloServer({
         schema: await buildSchema({
             resolvers: [UserResolver],
             validate: false
-        })
+        }),
+        context: ({ req, res }) => ({ req, res, redis })
     });
 
     const app = express();
