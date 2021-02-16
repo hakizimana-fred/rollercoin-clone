@@ -2,12 +2,14 @@ import "reflect-metadata";
 import { createConnection } from "typeorm";
 import { buildSchema } from 'type-graphql'
 import { User } from "./entity/User";
-import express from 'express'
+import express, { Request, Response } from 'express'
 import { ApolloServer } from 'apollo-server-express'
 import { UserResolver } from './resolvers/userResolver'
 import path from 'path'
 import dotenv from "dotenv";
 import Redis from 'ioredis'
+import passport from 'passport'
+import "./config/passport"
 
 dotenv.config()
 
@@ -37,6 +39,20 @@ const startServer = async () => {
 
     const app = express();
     const port = process.env.PORT || 4000
+
+
+    app.get('/auth/google', passport.authenticate('google', {
+        scope: ['profile']
+    }))
+
+    app.get('/auth/google/logout', (req: Request, res: Response) => {
+        console.log('logging out')
+    })
+
+    app.get('/auth/google/callback', (req: Request, res: Response) => {
+        console.log('callback url')
+    })
+
 
     server.applyMiddleware({ app });
 

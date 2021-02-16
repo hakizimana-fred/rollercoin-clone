@@ -22,6 +22,8 @@ const userResolver_1 = require("./resolvers/userResolver");
 const path_1 = __importDefault(require("path"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const ioredis_1 = __importDefault(require("ioredis"));
+const passport_1 = __importDefault(require("passport"));
+require("./config/passport");
 dotenv_1.default.config();
 const startServer = () => __awaiter(void 0, void 0, void 0, function* () {
     yield typeorm_1.createConnection({
@@ -45,6 +47,15 @@ const startServer = () => __awaiter(void 0, void 0, void 0, function* () {
     });
     const app = express_1.default();
     const port = process.env.PORT || 4000;
+    app.get('/auth/google', passport_1.default.authenticate('google', {
+        scope: ['profile']
+    }));
+    app.get('/auth/google/logout', (req, res) => {
+        console.log('logging out');
+    });
+    app.get('/auth/google/callback', (req, res) => {
+        console.log('callback url');
+    });
     server.applyMiddleware({ app });
     app.listen({ port }, () => console.log(`🚀 Server ready at http://localhost:4000${server.graphqlPath}`));
 });
